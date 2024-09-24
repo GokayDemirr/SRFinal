@@ -1,0 +1,2 @@
+Materials kısmındaki document idler stok kodları olacak şekilde güncelle.
+stock confirmations ekranını düzelt.
