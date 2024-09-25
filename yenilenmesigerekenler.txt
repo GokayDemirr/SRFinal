@@ -1,3 +1,763 @@
+depodaki resim görüntüleme malzemelerdeki gibi olacak
+
+depoda miktarı 0'ın altına düşürecek işlemler yapılamayacak
+
 malzeme eklerken raf no sırası seçildiğinde o raf no sırasınaa uygun hangi sütunlar dolu onu göstersin mesela 1(Dolu) yazsın.
 
 malzeme eklemede pc kayıt no talep et butonunu düzelt
+
+seri eklerken kaydet diyince modal hemen kapansın (biraz geç kapanıyor)
+
+import React, { useEffect, useState } from "react";
+import { collection, addDoc, query, where, getDocs } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import firestore from "../../firebase"; // Firebase config dosyanızın yolu
+
+function SeriesPage() {
+  const [showModal, setShowModal] = useState(false);
+  const [formData, setFormData] = useState({
+    seriesName: "",
+    modelCode: "",
+    dataCode: "",
+    images: [],
+    pdf: null,
+    dwg: null,
+  });
+  const [camCinsleri, setCamCinsleri] = useState([]);
+  const [secilenCamCinsi, setSecilenCamCinsi] = useState("");
+  const [camRenkleri, setCamRenkleri] = useState([]);
+  const [secilenCamRengi, setSecilenCamRengi] = useState("");
+  const [profilRenkleri, setProfilRenkleri] = useState([]);
+  const [secilenProfilRengi, setSecilenProfilRengi] = useState("");
+  const [widthMin, setwidthMin] = useState("");
+  const [widthMax, setwidthMax] = useState("");
+  const [heightOptions, setheightOptions] = useState([]);
+  const [seriesData, setSeriesData] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // Dosya türü kontrolü için fonksiyon
+  const isValidFileType = (file, allowedTypes) => {
+    if (allowedTypes[0].startsWith(".")) {
+      // Dosya uzantısı kontrolü
+      return allowedTypes.some((type) =>
+        file.name.toLowerCase().endsWith(type)
+      );
+    } else {
+      // MIME türü kontrolü
+      return allowedTypes.includes(file.type);
+    }
+  };
+
+  const handleSearch = (e) => {
+    setSearchTerm(e.target.value);
+  };
+
+  const filteredSeriesData = seriesData.filter((series) => {
+    const searchValue = searchTerm.toLowerCase();
+    return (
+      series.seriesName.toLowerCase().includes(searchValue) ||
+      series.modelCode.toLowerCase().includes(searchValue) ||
+      series.dataCode.toLowerCase().includes(searchValue) ||
+      (series.glassType &&
+        series.glassType.toLowerCase().includes(searchValue)) ||
+      (series.glassColor &&
+        series.glassColor.toLowerCase().includes(searchValue)) ||
+      (series.profileColor &&
+        series.profileColor.toLowerCase().includes(searchValue)) ||
+      (series.widthRange &&
+        `${series.widthRange[0]} - ${series.widthRange[1]}`
+          .toLowerCase()
+          .includes(searchValue)) ||
+      (series.heightOptions &&
+        series.heightOptions.join(", ").toLowerCase().includes(searchValue))
+    );
+  });
+
+  useEffect(() => {
+    const fetchCamCinsleri = async () => {
+      try {
+        const q = query(
+          collection(firestore, "Material"),
+          where("materialClassName", "==", "cam")
+        );
+        const querySnapshot = await getDocs(q);
+        const cinsler = [
+          ...new Set(
+            querySnapshot.docs.map((doc) => doc.data().materialTypeName)
+          ),
+        ];
+        setCamCinsleri(cinsler);
+      } catch (error) {
+        console.error("Cam cinsleri alınırken hata oluştu:", error);
+      }
+    };
+
+    fetchCamCinsleri();
+  }, []);
+
+  useEffect(() => {
+    const fetchSeriesData = async () => {
+      try {
+        const seriesCollection = collection(firestore, "Series");
+        const querySnapshot = await getDocs(seriesCollection);
+        const data = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setSeriesData(data);
+      } catch (error) {
+        console.error("Seri verileri alınırken hata oluştu:", error);
+      }
+    };
+
+    fetchSeriesData();
+  }, []);
+
+  useEffect(() => {
+    const fetchCamRenkleri = async () => {
+      if (secilenCamCinsi) {
+        try {
+          const q = query(
+            collection(firestore, "Material"),
+            where("materialClassName", "==", "cam"),
+            where("materialTypeName", "==", secilenCamCinsi)
+          );
+          const querySnapshot = await getDocs(q);
+          const renkler = [
+            ...new Set(
+              querySnapshot.docs.map((doc) => doc.data().materialColorName)
+            ),
+          ];
+          setCamRenkleri(renkler);
+        } catch (error) {
+          console.error("Cam renkleri alınırken hata oluştu:", error);
+        }
+      } else {
+        setCamRenkleri([]);
+      }
+    };
+
+    fetchCamRenkleri();
+  }, [secilenCamCinsi]);
+
+  useEffect(() => {
+    const fetchProfilRenkleri = async () => {
+      try {
+        const q = query(
+          collection(firestore, "Material"),
+          where("materialClassName", "==", "profil")
+        );
+        const querySnapshot = await getDocs(q);
+        const renkler = [
+          ...new Set(
+            querySnapshot.docs.map((doc) => doc.data().materialColorName)
+          ),
+        ];
+        setProfilRenkleri(renkler);
+      } catch (error) {
+        console.error("Profil renkleri alınırken hata oluştu:", error);
+      }
+    };
+
+    fetchProfilRenkleri();
+  }, []);
+
+  const handleChange = (e) => {
+    const { name, type, files } = e.target;
+
+    if (type === "file") {
+      let file = files[0]; // Sadece ilk dosyayı al
+
+      // Dosya türü kontrolü
+      switch (name) {
+        case "images":
+          if (!isValidFileType(file, ["image/jpeg", "image/png"])) {
+            alert("Lütfen geçerli bir image dosyası seçin (JPEG veya PNG).");
+            e.target.value = null; // Geçersiz dosyayı temizle
+            return;
+          }
+          break;
+        case "pdf":
+          if (!isValidFileType(file, ["application/pdf"])) {
+            alert("Lütfen geçerli bir PDF dosyası seçin.");
+            e.target.value = null;
+            return;
+          }
+          break;
+        case "dwg":
+          if (!isValidFileType(file, [".dwg"])) {
+            // .dwg dosyasının MIME türünü kontrol edin
+            alert("Lütfen geçerli bir DWG dosyası seçin.");
+            e.target.value = null;
+            return;
+          }
+          break;
+        default:
+          break;
+      }
+
+      if (name === "images") {
+        // Birden fazla image seçildiyse hepsini ekle
+        // En fazla 4 image sınırı
+        const newImages = [...formData.images, ...Array.from(files)].slice(
+          0,
+          4
+        );
+        setFormData({
+          ...formData,
+          images: newImages,
+        });
+      } else {
+        // Tek dosya seçildiğinde ilk dosyayı al
+        setFormData({
+          ...formData,
+          [name]: file,
+        });
+      }
+    } else {
+      setFormData({
+        ...formData,
+        [name]: e.target.value,
+      });
+    }
+  };
+
+  const handleImageChange = (index, e) => {
+    const { files } = e.target;
+    if (files && files[0]) {
+      if (!isValidFileType(files[0], ["image/jpeg", "image/png"])) {
+        alert("Lütfen geçerli bir image dosyası seçin (JPEG veya PNG).");
+        e.target.value = null;
+        return;
+      }
+      const updatedimages = [...formData.images];
+      updatedimages[index] = files[0];
+      setFormData({
+        ...formData,
+        images: updatedimages,
+      });
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (formData.images.length !== 4) {
+      alert("Lütfen tam olarak 4 image yükleyin.");
+      return;
+    }
+
+    try {
+      // Dosyaları yükle ve URL'leri al
+      const storage = getStorage();
+      const uploadedFiles = await Promise.all([
+        ...formData.images.map((image) =>
+          uploadImage(storage, image, `${formData.seriesName}-${image.name}`)
+        ),
+        formData.pdf &&
+          uploadImage(
+            storage,
+            formData.pdf,
+            `${formData.seriesName}-${formData.pdf.name}`
+          ),
+        formData.dwg &&
+          uploadImage(
+            storage,
+            formData.dwg,
+            `${formData.seriesName}-${formData.dwg.name}`
+          ),
+      ]);
+
+      // Yüklenen dosyaların URL'lerini ayıkla
+      const imageUrls = uploadedFiles.slice(0, 4).filter(Boolean);
+      const pdfUrl = uploadedFiles[4] || null;
+      const dwgUrl = uploadedFiles[5] || null;
+
+      // Veritabanına belgeyi ekle
+      const seriesCollection = collection(firestore, "Series");
+      await addDoc(seriesCollection, {
+        seriesName: formData.seriesName,
+        modelCode: formData.modelCode,
+        dataCode: formData.dataCode,
+        images: imageUrls,
+        pdf: pdfUrl,
+        dwg: dwgUrl,
+        heightOptions: heightOptions.map((height) => parseFloat(height)), // Yükseklik ölçüleri
+        widthRange: [parseFloat(widthMin), parseFloat(widthMax)], // Genişlik aralığı
+        glassType: secilenCamCinsi, // Seçilen cam cinsi
+        glassColor: secilenCamRengi, // Seçilen cam rengi
+        profileColor: secilenProfilRengi, // Seçilen profil rengi
+      });
+
+      // Formu sıfırla ve modalı kapat
+      setFormData({
+        seriesName: "",
+        modelCode: "",
+        dataCode: "",
+        images: [],
+        pdf: null,
+        dwg: null,
+      });
+      setShowModal(false);
+    } catch (error) {
+      console.error("Error adding document: ", error);
+    }
+  };
+
+  // Dosya yükleme fonksiyonu
+  const uploadImage = async (storage, file, fileName) => {
+    if (!file) return null;
+    const storageRef = ref(storage, fileName);
+    await uploadBytes(storageRef, file);
+    return await getDownloadURL(storageRef);
+  };
+
+  return (
+    <div>
+      <button
+        onClick={() => setShowModal(true)}
+        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mb-12"
+      >
+        Seri Oluştur
+      </button>
+
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Seri adına, model koduna, vb. göre ara..."
+          value={searchTerm}
+          onChange={handleSearch}
+          className="border border-gray-300 px-3 py-2 rounded w-full"
+        />
+      </div>
+
+      <table className="table-auto w-full">
+        <thead>
+          <tr>
+            <th className="px-4 py-2">Seri Adı</th>
+            <th className="px-4 py-2">Model Kodu</th>
+            <th className="px-4 py-2">Data Kodu</th>
+            <th className="px-4 py-2">Cam Cinsi</th>
+            <th className="px-4 py-2">Cam Rengi</th>
+            <th className="px-4 py-2">Profil Rengi</th>
+            <th className="px-4 py-2">Genişlik Ölçü Aralığı</th>
+            <th className="px-4 py-2">Yükseklik Ölçü Seçenekleri</th>
+            <th className="px-4 py-2">Resimler</th>
+            <th className="px-4 py-2">PDF</th>
+            <th className="px-4 py-2">DWG</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredSeriesData.map((series) => (
+            <tr key={series.id}>
+              <td className="border px-4 py-2">{series.seriesName}</td>
+              <td className="border px-4 py-2">{series.modelCode}</td>
+              <td className="border px-4 py-2">{series.dataCode}</td>
+              <td className="border px-4 py-2">{series.glassType}</td>
+              <td className="border px-4 py-2">{series.glassColor}</td>
+              <td className="border px-4 py-2">{series.profileColor}</td>
+              <td className="border px-4 py-2">
+                {series.widthRange &&
+                  `${series.widthRange[0]} - ${series.widthRange[1]}`}
+              </td>
+              <td className="border px-4 py-2">
+                {series.heightOptions && series.heightOptions.join(", ")}
+              </td>
+              <td className="border px-4 py-2">
+                {series.images &&
+                  series.images.map((image, index) => (
+                    <a
+                      key={index}
+                      href={image}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mr-2"
+                    >
+                      Resim {index + 1}
+                    </a>
+                  ))}
+              </td>
+              <td className="border px-4 py-2">
+                {series.pdf && (
+                  <a
+                    href={series.pdf}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    PDF
+                  </a>
+                )}
+              </td>
+              <td className="border px-4 py-2">
+                {series.dwg && (
+                  <a href={series.dwg} download>
+                    DWG'yi İndir
+                  </a>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {showModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowModal(false);
+
+              // Form verilerini sıfırla
+              setFormData({
+                seriesName: "",
+                modelCode: "",
+                dataCode: "",
+                images: [],
+                pdf: null,
+                dwg: null,
+              });
+              setheightOptions([]);
+            }
+          }}
+        >
+          <div
+            className="bg-white px-8 py-2 rounded shadow-mdw
+           w-full max-w-3xl max-h-[80vh] overflow-y-auto"
+          >
+            <h2 className="text-2xl font-bold mb-4">Seri Oluştur</h2>
+            <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
+              {/* Diğer input alanları */}
+              <div className="mb-4">
+                <label htmlFor="seriesName" className="block mb-2">
+                  Seri Adı:
+                </label>
+                <input
+                  type="text"
+                  id="seriesName"
+                  name="seriesName"
+                  value={formData.seriesName}
+                  onChange={handleChange}
+                  className="border border-gray-300 px-3 py-2 rounded w-full"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label htmlFor="modelCode" className="block mb-2">
+                  Model Kodu:
+                </label>
+                <input
+                  type="text"
+                  id="modelCode"
+                  name="modelCode"
+                  value={formData.modelCode}
+                  onChange={handleChange}
+                  className="border border-gray-300 px-3 py-2 rounded w-full"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label htmlFor="dataCode" className="block mb-2">
+                  Data Kodu:
+                </label>
+                <input
+                  type="text"
+                  id="dataCode"
+                  name="dataCode"
+                  value={formData.dataCode}
+                  onChange={handleChange}
+                  className="border border-gray-300 px-3 py-2 rounded w-full"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label htmlFor="camCinsi" className="block mb-2">
+                  Cam Cinsi:
+                </label>
+                <select
+                  id="camCinsi"
+                  name="camCinsi"
+                  value={secilenCamCinsi}
+                  onChange={(e) => setSecilenCamCinsi(e.target.value)}
+                  className="border border-gray-300 px-3 py-2 rounded w-full"
+                >
+                  <option value="">Seçiniz</option>
+                  {camCinsleri.map((cins) => (
+                    <option key={cins} value={cins}>
+                      {cins}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="mb-4">
+                <label htmlFor="camRengi" className="block mb-2">
+                  Cam Rengi:
+                </label>
+                <select
+                  id="camRengi"
+                  name="camRengi"
+                  value={secilenCamRengi}
+                  onChange={(e) => setSecilenCamRengi(e.target.value)}
+                  className="border border-gray-300 px-3 py-2 rounded w-full"
+                  disabled={!secilenCamCinsi}
+                >
+                  <option value="">Seçiniz</option>
+                  {camRenkleri.map((renk) => (
+                    <option key={renk} value={renk}>
+                      {renk}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="mb-4">
+                <label htmlFor="profilRengi" className="block mb-2">
+                  Profil Rengi:
+                </label>
+                <select
+                  id="profilRengi"
+                  name="profilRengi"
+                  value={secilenProfilRengi}
+                  onChange={(e) => setSecilenProfilRengi(e.target.value)}
+                  className="border border-gray-300 px-3 py-2 rounded w-full"
+                >
+                  <option value="">Seçiniz</option>
+                  {profilRenkleri.map((renk) => (
+                    <option key={renk} value={renk}>
+                      {renk}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="mb-4">
+                <label htmlFor="widthAraligi" className="block mb-2">
+                  Genişlik Ölçü Aralığı (cm):
+                </label>
+                <div className="flex">
+                  <input
+                    type="number"
+                    id="widthMin"
+                    name="widthMin"
+                    value={widthMin}
+                    onChange={(e) => setwidthMin(e.target.value)}
+                    className="border border-gray-300 px-3 py-2 rounded w-1/2 mr-2"
+                    placeholder="Min"
+                  />
+                  <input
+                    type="number"
+                    id="widthMax"
+                    name="widthMax"
+                    value={widthMax}
+                    onChange={(e) => setwidthMax(e.target.value)}
+                    className="border border-gray-300 px-3 py-2 rounded w-1/2"
+                    placeholder="Max"
+                  />
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <label className="block mb-2">Yükseklik Ölçüleri (cm):</label>
+                <ul>
+                  {heightOptions.map((height, index) => (
+                    <li key={index} className="flex items-center mb-2">
+                      <input
+                        type="number"
+                        value={height}
+                        onChange={(e) => {
+                          const updatedheightler = [...heightOptions];
+                          updatedheightler[index] = parseFloat(e.target.value);
+                          setheightOptions(updatedheightler);
+                        }}
+                        className="border border-gray-300 px-3 py-2 rounded w-full mr-2"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updatedheightler = [...heightOptions];
+                          updatedheightler.splice(index, 1);
+                          setheightOptions(updatedheightler);
+                        }}
+                        className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs"
+                      >
+                        Kaldır
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  type="button"
+                  onClick={() => setheightOptions([...heightOptions, ""])}
+                  className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                >
+                  Ekle
+                </button>
+              </div>
+              <div className="mb-4">
+                <label htmlFor="images" className="block mb-2">
+                  Resimler:
+                </label>
+                {formData.images.map((image, index) => (
+                  <div key={index} className="flex items-center mb-2">
+                    <span className="mr-2">
+                      image {index + 1}: {image.name}
+                    </span>
+                    <input
+                      type="file"
+                      id={`image-${index}`}
+                      name="images"
+                      onChange={(e) => handleImageChange(index, e)}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        document.getElementById(`image-${index}`).click()
+                      }
+                      className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded text-xs"
+                    >
+                      Değiştir
+                    </button>
+                  </div>
+                ))}
+                {formData.images.length < 4 && (
+                  <input
+                    type="file"
+                    id="images"
+                    name="images"
+                    multiple // Birden fazla image seçebilmek için
+                    onChange={handleChange}
+                    className="hidden" // Input alanını gizle
+                  />
+                )}
+                {formData.images.length < 4 && (
+                  <button
+                    type="button" // Formun submitlenmesini engelle
+                    onClick={() => document.getElementById("images").click()} // Gizli input alanını tetikle
+                    className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                  >
+                    image Yükle
+                  </button>
+                )}
+              </div>
+              <div className="mb-4">
+                <label htmlFor="pdf" className="block mb-2 ">
+                  PDF:
+                </label>
+                {formData.pdf ? (
+                  <div className="flex items-center">
+                    <span className="mr-2">
+                      Yüklenen PDF: {formData.pdf.name}
+                    </span>
+                    <input
+                      type="file"
+                      id="pdf"
+                      name="pdf"
+                      onChange={handleChange}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => document.getElementById("pdf").click()}
+                      className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded text-xs"
+                    >
+                      Değiştir
+                    </button>
+                  </div>
+                ) : (
+                  <input
+                    type="file"
+                    id="pdf"
+                    name="pdf"
+                    onChange={handleChange}
+                    className="hidden"
+                  />
+                )}
+                {!formData.pdf && (
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById("pdf").click()}
+                    className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                  >
+                    PDF Yükle
+                  </button>
+                )}
+              </div>
+              <div className="mb-4">
+                <label htmlFor="dwg" className="block mb-2">
+                  DWG:
+                </label>
+                {formData.dwg ? (
+                  <div className="flex items-center">
+                    <span className="mr-2">
+                      Yüklenen DWG: {formData.dwg.name}
+                    </span>
+                    <input
+                      type="file"
+                      id="dwg"
+                      name="dwg"
+                      onChange={handleChange}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => document.getElementById("dwg").click()}
+                      className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded text-xs"
+                    >
+                      Değiştir
+                    </button>
+                  </div>
+                ) : (
+                  <input
+                    type="file"
+                    id="dwg"
+                    name="dwg"
+                    onChange={handleChange}
+                    className="hidden"
+                  />
+                )}
+                {!formData.dwg && (
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById("dwg").click()}
+                    className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                  >
+                    DWG Dosyası Yükle
+                  </button>
+                )}
+              </div>
+              {/* Diğer form elemanları */}
+              <button
+                type="submit"
+                className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+              >
+                Kaydet
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowModal(false);
+
+                  // Form verilerini sıfırla
+                  setFormData({
+                    seriesName: "",
+                    modelCode: "",
+                    dataCode: "",
+                    images: [],
+                    pdf: null,
+                    dwg: null,
+                  });
+                }}
+                className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded ml-2"
+              >
+                Kapat
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default SeriesPage;

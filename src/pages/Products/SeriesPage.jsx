@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { collection, addDoc } from "firebase/firestore";
+import { collection, addDoc, query, where, getDocs } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import firestore from "../../firebase"; // Firebase config dosyanızın yolu
 
@@ -22,6 +22,8 @@ function SeriesPage() {
   const [widthMin, setwidthMin] = useState("");
   const [widthMax, setwidthMax] = useState("");
   const [heightOptions, setheightOptions] = useState([]);
+  const [seriesData, setSeriesData] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Dosya türü kontrolü için fonksiyon
   const isValidFileType = (file, allowedTypes) => {
@@ -35,6 +37,31 @@ function SeriesPage() {
       return allowedTypes.includes(file.type);
     }
   };
+
+  const handleSearch = (e) => {
+    setSearchTerm(e.target.value);
+  };
+
+  const filteredSeriesData = seriesData.filter((series) => {
+    const searchValue = searchTerm.toLowerCase();
+    return (
+      series.seriesName.toLowerCase().includes(searchValue) ||
+      series.modelCode.toLowerCase().includes(searchValue) ||
+      series.dataCode.toLowerCase().includes(searchValue) ||
+      (series.glassType &&
+        series.glassType.toLowerCase().includes(searchValue)) ||
+      (series.glassColor &&
+        series.glassColor.toLowerCase().includes(searchValue)) ||
+      (series.profileColor &&
+        series.profileColor.toLowerCase().includes(searchValue)) ||
+      (series.widthRange &&
+        `${series.widthRange[0]} - ${series.widthRange[1]}`
+          .toLowerCase()
+          .includes(searchValue)) ||
+      (series.heightOptions &&
+        series.heightOptions.join(", ").toLowerCase().includes(searchValue))
+    );
+  });
 
   useEffect(() => {
     const fetchCamCinsleri = async () => {
@@ -56,6 +83,24 @@ function SeriesPage() {
     };
 
     fetchCamCinsleri();
+  }, []);
+
+  useEffect(() => {
+    const fetchSeriesData = async () => {
+      try {
+        const seriesCollection = collection(firestore, "Series");
+        const querySnapshot = await getDocs(seriesCollection);
+        const data = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setSeriesData(data);
+      } catch (error) {
+        console.error("Seri verileri alınırken hata oluştu:", error);
+      }
+    };
+
+    fetchSeriesData();
   }, []);
 
   useEffect(() => {
@@ -229,6 +274,9 @@ function SeriesPage() {
         dwg: dwgUrl,
         heightOptions: heightOptions.map((height) => parseFloat(height)), // Yükseklik ölçüleri
         widthRange: [parseFloat(widthMin), parseFloat(widthMax)], // Genişlik aralığı
+        glassType: secilenCamCinsi, // Seçilen cam cinsi
+        glassColor: secilenCamRengi, // Seçilen cam rengi
+        profileColor: secilenProfilRengi, // Seçilen profil rengi
       });
 
       // Formu sıfırla ve modalı kapat
@@ -240,7 +288,15 @@ function SeriesPage() {
         pdf: null,
         dwg: null,
       });
+      setheightOptions([]);
       setShowModal(false);
+
+      const querySnapshot = await getDocs(seriesCollection);
+      const data = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setSeriesData(data);
     } catch (error) {
       console.error("Error adding document: ", error);
     }
@@ -258,10 +314,89 @@ function SeriesPage() {
     <div>
       <button
         onClick={() => setShowModal(true)}
-        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mb-12"
       >
         Seri Oluştur
       </button>
+
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Seri adına, model koduna, vb. göre ara..."
+          value={searchTerm}
+          onChange={handleSearch}
+          className="border border-gray-300 px-3 py-2 rounded w-full"
+        />
+      </div>
+
+      <table className="table-auto w-full">
+        <thead>
+          <tr>
+            <th className="px-4 py-2">Seri Adı</th>
+            <th className="px-4 py-2">Model Kodu</th>
+            <th className="px-4 py-2">Data Kodu</th>
+            <th className="px-4 py-2">Cam Cinsi</th>
+            <th className="px-4 py-2">Cam Rengi</th>
+            <th className="px-4 py-2">Profil Rengi</th>
+            <th className="px-4 py-2">Genişlik Ölçü Aralığı</th>
+            <th className="px-4 py-2">Yükseklik Ölçü Seçenekleri</th>
+            <th className="px-4 py-2">Resimler</th>
+            <th className="px-4 py-2">PDF</th>
+            <th className="px-4 py-2">DWG</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredSeriesData.map((series) => (
+            <tr key={series.id}>
+              <td className="border px-4 py-2">{series.seriesName}</td>
+              <td className="border px-4 py-2">{series.modelCode}</td>
+              <td className="border px-4 py-2">{series.dataCode}</td>
+              <td className="border px-4 py-2">{series.glassType}</td>
+              <td className="border px-4 py-2">{series.glassColor}</td>
+              <td className="border px-4 py-2">{series.profileColor}</td>
+              <td className="border px-4 py-2">
+                {series.widthRange &&
+                  `${series.widthRange[0]} - ${series.widthRange[1]}`}
+              </td>
+              <td className="border px-4 py-2">
+                {series.heightOptions && series.heightOptions.join(", ")}
+              </td>
+              <td className="border px-4 py-2">
+                {series.images &&
+                  series.images.map((image, index) => (
+                    <a
+                      key={index}
+                      href={image}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mr-2"
+                    >
+                      Resim {index + 1}
+                    </a>
+                  ))}
+              </td>
+              <td className="border px-4 py-2">
+                {series.pdf && (
+                  <a
+                    href={series.pdf}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    PDF
+                  </a>
+                )}
+              </td>
+              <td className="border px-4 py-2">
+                {series.dwg && (
+                  <a href={series.dwg} download>
+                    DWG'yi İndir
+                  </a>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
       {showModal && (
         <div
