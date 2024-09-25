@@ -1,2 +1,3 @@
-Materials kısmındaki document idler stok kodları olacak şekilde güncelle.
-stock confirmations ekranını düzelt.
+malzeme eklerken raf no sırası seçildiğinde o raf no sırasınaa uygun hangi sütunlar dolu onu göstersin mesela 1(Dolu) yazsın.
+
+malzeme eklemede pc kayıt no talep et butonunu düzelt

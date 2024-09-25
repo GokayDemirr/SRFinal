@@ -236,6 +236,11 @@ const MaterialTable = () => {
                 <td className="border px-4 py-2">{material.stockCode}</td>
                 <td className="border px-4 py-2">
                   {material.materialClassName}
+                  {/* Malzeme sınıfı "profil" veya "fitil" ise height'ı göster */}
+                  {(material.materialClassName === "profil" ||
+                    material.materialClassName === "fitil") &&
+                    material.height &&
+                    ` - ${material.height}cm`}
                 </td>
                 <td className="border px-4 py-2">
                   {material.materialTypeName}
@@ -337,19 +342,21 @@ const MaterialTable = () => {
                     </div>
                   ) : imageUrls[material.id] ? (
                     <div>
-                      <img
-                        src={imageUrls[material.id]}
-                        alt="Material Image"
-                        className="cursor-pointer w-16 h-16 object-cover ml-8"
-                        onClick={() => openImageModal(material.id)}
-                      />
+                      <a
+                        href={imageUrls[material.id]}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-500 underline"
+                      >
+                        Resmi görüntüle
+                      </a>
                       <div className="mt-2 flex items-center space-x-2">
                         {/* Resim Yükle Butonu */}
                         <label
                           htmlFor={`file-upload-${material.id}`}
                           className="cursor-pointer p-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition"
                         >
-                          Değiştir{" "}
+                          Değiştir
                         </label>
                         <input
                           id={`file-upload-${material.id}`}

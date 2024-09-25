@@ -5,11 +5,13 @@ const Sidebar = () => {
   const [isWarehouseOpen, setIsWarehouseOpen] = useState(false);
   const [isCurrentAccountsOpen, setIsCurrentAccountsOpen] = useState(false);
   const [isMaterialsOpen, setIsMaterialsOpen] = useState(false);
+  const [isProductsOpen, setIsProductsOpen] = useState(false);
 
   const toggleWarehouse = () => setIsWarehouseOpen(!isWarehouseOpen);
   const toggleCurrentAccounts = () =>
     setIsCurrentAccountsOpen(!isCurrentAccountsOpen);
   const toggleMaterials = () => setIsMaterialsOpen(!isMaterialsOpen);
+  const toggleProducts = () => setIsProductsOpen(!isProductsOpen);
 
   return (
     <nav className="bg-zinc-50 w-60 h-screen p-4 shadow-md">
@@ -30,7 +32,22 @@ const Sidebar = () => {
           )}
         </li>
         <li className="mb-2">
-          <Link to="products">Ürünler</Link>
+          <div onClick={toggleProducts} className="cursor-pointer">
+            Ürünler
+          </div>
+          {isProductsOpen && (
+            <ul className="ml-4">
+              <li className="mb-2">
+                <Link to="series">Seriler</Link>
+              </li>
+              <li className="mb-2">
+                <Link to="sideProducts">Yarı mamüller</Link>
+              </li>
+              <li className="mb-2">
+                <Link to="products">Ana mamüller</Link>
+              </li>
+            </ul>
+          )}
         </li>
         <li className="mb-2">
           <div onClick={toggleWarehouse} className="cursor-pointer">

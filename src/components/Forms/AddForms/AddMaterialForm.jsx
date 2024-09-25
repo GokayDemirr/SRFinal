@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { addDoc, collection, getDocs } from "firebase/firestore";
+import { doc, setDoc, getDoc, collection, getDocs } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import firestore from "../../../firebase";
 
@@ -21,6 +21,7 @@ const AddMaterialForm = () => {
   const [FirmaKisaltmasi, setFirmaKisaltmasi] = useState("SR");
   const [imagePreview, setImagePreview] = useState(null);
   const [isFormValid, setIsFormValid] = useState(false);
+  const [showHeightInput, setShowHeightInput] = useState(false);
 
   const selectedClass = watch("materialClassName");
   const selectedType = watch("materialTypeName");
@@ -28,7 +29,20 @@ const AddMaterialForm = () => {
   const selectedShelfRow = watch("shelfRowNo");
   const selectedShelfColumn = watch("shelfColumnNo");
   const selectedDirection = watch("materialDirection");
+  const [selectedClassData, setSelectedClassData] = useState(null);
+
   const [availableColumns, setAvailableColumns] = useState([]);
+
+  useEffect(() => {
+    // Now check selectedClassData?.materialClassName
+    console.log("Selected Class Data:", selectedClassData);
+
+    setShowHeightInput(
+      selectedClassData?.materialClassName === "fitil" ||
+        selectedClassData?.materialClassName === "profil" ||
+        selectedClassData?.materialClassName === "mıknatıs"
+    );
+  }, [selectedClassData]);
 
   useEffect(() => {
     const fetchOccupiedShelfColumns = async () => {
@@ -83,6 +97,29 @@ const AddMaterialForm = () => {
 
     fetchShelfColumns();
   }, []);
+
+  useEffect(() => {
+    const fetchSelectedClassData = async () => {
+      if (selectedClass) {
+        try {
+          const docRef = doc(firestore, "MaterialClass", selectedClass);
+          const docSnap = await getDoc(docRef);
+
+          if (docSnap.exists()) {
+            setSelectedClassData(docSnap.data());
+          } else {
+            console.log("No such document!");
+          }
+        } catch (error) {
+          console.error("Error getting document:", error);
+        }
+      } else {
+        setSelectedClassData(null);
+      }
+    };
+
+    fetchSelectedClassData();
+  }, [selectedClass]);
 
   useEffect(() => {
     const fetchMaterialClass = async () => {
@@ -217,25 +254,17 @@ const AddMaterialForm = () => {
       const shelfNo = `${shelfRowNo}-${shelfColumnNo}`;
 
       try {
-        // Firebase'den mevcut malzeme kombinasyonunu kontrol et
-        const querySnapshot = await getDocs(collection(firestore, "Material"));
-        const existingMaterial = querySnapshot.docs.find((doc) => {
-          const materialData = doc.data();
-          return (
-            materialData.materialClassName ===
-              selectedMaterialClass?.materialClassName &&
-            materialData.materialTypeName ===
-              selectedMaterialType?.materialTypeName &&
-            materialData.materialColorName ===
-              selectedMaterialColor?.materialColorName &&
-            materialData.materialDirection === materialDirection &&
-            materialData.shelfNo === shelfNo // Kontrol ekledik
-          );
-        });
+        // Check if the material with the same stockCode already exists
+        const docRef = doc(firestore, "Material", stockCode);
+        const docSnap = await getDoc(docRef);
 
-        if (existingMaterial) {
+        if (docSnap.exists()) {
           alert("Seçtiğiniz özelliklerde bir malzeme halihazırda eklenmiş.");
-          return; // Var olan malzeme bulunduysa işlemi durdur
+          return; // Stop if the material already exists
+        }
+
+        if (showHeightInput) {
+          data.height = parseFloat(data.height); // Convert to a number
         }
 
         let imageUrl = "";
@@ -244,20 +273,21 @@ const AddMaterialForm = () => {
           imageUrl = await uploadImage(imageFile, stockCode);
         }
 
-        // Eğer aynı malzeme yoksa, yeni malzemeyi ekle
-        const docRef = await addDoc(collection(firestore, "Material"), {
+        // Add a new document with the custom ID (stockCode)
+        await setDoc(docRef, {
           stockCode,
           materialClassName: selectedMaterialClass?.materialClassName,
           materialTypeName: selectedMaterialType?.materialTypeName,
           materialColorName: selectedMaterialColor?.materialColorName,
-          shelfNo, // Tekil alan olarak ekledik
+          shelfNo,
           materialDirection,
           pcRegisterNo,
           imageUrl,
           amount: 0,
+          height: showHeightInput ? data.height : null, // Set height to null if not applicable
         });
 
-        console.log("Document written with ID: ", docRef.id);
+        console.log("Document written with stockCode: ", stockCode);
         window.location.reload();
       } catch (error) {
         console.error("Error adding document: ", error);
@@ -282,9 +312,9 @@ const AddMaterialForm = () => {
         Malzeme Sınıfı: ${selectedClass}
         Malzeme Cinsi: ${selectedType}
         Malzeme Rengi: ${selectedColor}
-        Raf NO sırası: ${selectedShelfRow}
-        Raf NO Sütunu: ${selectedShelfColumn}
-        Yönü: ${selectedDirection}
+        Malzeme Yönü: ${selectedDirection}
+        Raf NO: ${selectedShelfRow}-${selectedShelfColumn}
+      
 
         Teşekkürler.
       `);
@@ -333,6 +363,23 @@ const AddMaterialForm = () => {
             </p>
           )}
         </div>
+        {showHeightInput && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Ölçü (cm):
+            </label>
+            <input
+              type="number"
+              className={`mt-1 block w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 ${
+                errors.height ? "border-red-500" : ""
+              }`}
+              {...register("height", { required: true })}
+            />
+            {errors.height && (
+              <p className="text-red-500 text-sm mt-1">Ölçü (cm) gereklidir.</p>
+            )}
+          </div>
+        )}
 
         <div>
           <label className="block text-sm font-medium text-gray-700">

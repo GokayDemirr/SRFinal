@@ -4,7 +4,7 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import App from "./App.jsx";
 import "./index.css";
 import MaterialsPage from "./pages/Materials/MaterialsPage.jsx";
-import ProductsPage from "./pages/ProductsPage.jsx";
+import SeriesPage from "./pages/Products/SeriesPage.jsx";
 
 import MaterialClassesPage from "./pages/Materials/MaterialsClassesPage.jsx";
 import MaterialTypesPage from "./pages/Materials/MaterialTypesPage.jsx";
@@ -14,6 +14,8 @@ import CustomersPage from "./pages/CurrentAccounts/CustomersPage.jsx";
 import WarehousePage from "./pages/Warehouse/WarehousePage.jsx";
 import SupplyWarehousePage from "./pages/Warehouse/SupplyWarehousePage.jsx";
 import StockConfirmations from "./pages/StockConfirmations/StockConfirmations.jsx";
+import ProductsPage from "./pages/Products/ProductsPage.jsx";
+import SideProductsPage from "./pages/Products/SideProductsPage.jsx";
 
 const router = createBrowserRouter([
   {
@@ -25,6 +27,8 @@ const router = createBrowserRouter([
       { path: "materialTypes", element: <MaterialTypesPage /> },
       { path: "materialColors", element: <MaterialColorsPage /> },
       { path: "products", element: <ProductsPage /> },
+      { path: "sideProducts", element: <SideProductsPage /> },
+      { path: "series", element: <SeriesPage /> },
       { path: "services", element: <div>Services Content</div> },
       { path: "contact", element: <div>Contact Content</div> },
       { path: "warehouse", element: <WarehousePage /> },

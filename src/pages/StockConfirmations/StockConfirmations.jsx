@@ -54,7 +54,7 @@ const StockConfirmations = () => {
   const handleApprove = async (operation) => {
     try {
       // Materials koleksiyonunda stockCode ile sorgu yap
-      const materialsRef = collection(firestore, "Materials");
+      const materialsRef = collection(firestore, "Material");
       const q = query(
         materialsRef,
         where("stockCode", "==", operation.stockCode)
@@ -71,7 +71,7 @@ const StockConfirmations = () => {
             : currentAmount - operation.quantity; // Miktarı azalt
 
         // Amount güncelle
-        await updateDoc(doc(firestore, "Materials", materialDoc.id), {
+        await updateDoc(doc(firestore, "Material", materialDoc.id), {
           amount: updatedAmount,
         });
       } else {
