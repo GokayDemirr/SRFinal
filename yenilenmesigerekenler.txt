@@ -1,0 +1,5 @@
+depodaki resim görüntüleme malzemelerdeki gibi olacak
+
+
+seri eklerken kaydet diyince modal hemen kapansın (biraz geç kapanıyor)
+
